@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "bot": "node bot/meet-bot.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -15,7 +16,8 @@
   "dependencies": {
     "@google-apps/meet": "^0.7.2",
     "express": "^5.2.1",
-    "googleapis": "^173.0.0"
+    "googleapis": "^173.0.0",
+    "playwright": "^1.61.0"
   },
   "devDependencies": {
     "dotenv": "^17.4.2"

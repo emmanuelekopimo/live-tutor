@@ -76,9 +76,11 @@ Implemented today:
   - `GET /auth` → start OAuth consent
   - `GET /auth/callback` → exchange code for tokens
   - `GET /create-meet` → create an **OPEN** Meet space and return the join link
+- **Playwright bot** (`bot/meet-bot.js`) — milestone 1: joins a Meet link (muted,
+  camera off) and stays in the call with a heartbeat. No audio/AI yet.
 
-Not yet built: the Playwright bot, audio capture, the AI pipeline, the whiteboard, and
-TTS playback. These are the next milestones.
+Not yet built: DOM watching (hand raise / mute), audio capture, the AI pipeline, the
+whiteboard, and TTS playback. These are the next milestones.
 
 ---
 
@@ -136,14 +138,26 @@ Then:
    }
    ```
 
+### Sending the bot into a call
+
+```bash
+pnpm bot https://meet.google.com/xxx-xxxx-xxx
+# or set MEET_URL in .env and run: pnpm bot
+```
+
+A headed Chromium window opens, joins the meeting (mic + camera off), and stays until you
+press **Ctrl+C** (the bot leaves the call cleanly on exit). The browser uses a persistent
+profile in `.playwright-profile/` — if guest join is restricted, sign in to Google **once**
+in that window and the session is reused on later runs.
+
 ---
 
 ## Roadmap
 
 Build order — each step builds on the previous:
 
-1. **Bot joins & stays alive** ◄ *current focus* — Playwright (headed) joins the Meet
-   link from `/create-meet` and remains in the call.
+1. **Bot joins & stays alive** ✅ *scaffolded* (`bot/meet-bot.js`) — Playwright (headed)
+   joins the Meet link from `/create-meet` and remains in the call.
 2. **DOM watcher** — detect hand raises and mute/unmute state changes.
 3. **Audio capture** — capture tab audio (companion Chrome extension + `tabCapture`).
 4. **Transcription** — pipe captured audio to OpenAI Whisper.
@@ -159,6 +173,9 @@ Build order — each step builds on the previous:
 live-tutor/
 ├── server.js        # Express app: auth + create-meet routes (control plane)
 ├── auth.js          # Google OAuth client, token load/save/refresh
+├── bot/
+│   ├── meet-bot.js  # Playwright bot: joins a Meet link and stays (live plane)
+│   └── selectors.js # Meet DOM selectors, isolated so they're easy to update
 ├── tokens.json      # Persisted OAuth tokens (gitignored)
 ├── .env             # Secrets (gitignored)
 ├── package.json

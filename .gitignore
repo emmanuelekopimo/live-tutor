@@ -22,3 +22,6 @@ __pycache__/
 node_modules/
 
 tokens.json
+
+# Playwright persistent browser profile (cookies, Google sign-in, cache)
+.playwright-profile/

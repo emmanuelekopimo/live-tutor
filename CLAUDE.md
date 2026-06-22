@@ -21,9 +21,11 @@ Playwright bot, and vice versa — they cooperate.
 
 ## Current focus
 
-**Get the Playwright bot to join a Meet link and stay in the call.** Everything past that
-(DOM watching, audio, STT, LLM, TTS, whiteboard) is later. Keep changes scoped to this
-milestone unless asked otherwise. The build order is in `README.md` → Roadmap; follow it.
+Milestone 1 — **bot joins a Meet link and stays in the call** — is scaffolded in
+`bot/meet-bot.js` (+ `bot/selectors.js`). It runs headed, joins muted/camera-off, and
+heartbeats. The **next** milestone is the DOM watcher (hand raise + mute/unmute
+detection). Everything past that (audio, STT, LLM, TTS, whiteboard) is later. Keep changes
+scoped one milestone at a time — the build order is in `README.md` → Roadmap; follow it.
 
 ## Tech stack & committed choices
 
@@ -53,7 +55,10 @@ Don't swap any of these for an alternative without asking — they were chosen d
 |------|------|
 | `server.js` | Express entry point. Routes: `/auth`, `/auth/callback`, `/create-meet`. |
 | `auth.js`   | OAuth2 client, scopes, token load/save, refresh-token persistence. |
+| `bot/meet-bot.js` | Playwright bot: joins a Meet link, mutes, stays in call, heartbeats. |
+| `bot/selectors.js` | **All** Meet DOM locators. Update here first when the join flow breaks. |
 | `tokens.json` | Saved OAuth tokens (gitignored). Deleting it forces re-consent. |
+| `.playwright-profile/` | Persistent browser profile for the bot (gitignored). Holds Google sign-in. |
 | `.env`      | `CLIENT_ID`, `CLIENT_SECRET` today; more API keys as the bot grows. |
 
 ## Environment & secrets
