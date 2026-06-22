@@ -20,3 +20,5 @@ __pycache__/
 
 # Node environment
 node_modules/
+
+tokens.json
