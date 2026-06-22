@@ -1,0 +1,22 @@
+# Environment files and virtual environments
+.env
+.env.*
+.env.local
+.env.development
+.env.test
+.env.production
+.envrc
+local.env
+
+# Virtual environment directories
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+
+# Node environment
+node_modules/
