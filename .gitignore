@@ -23,5 +23,6 @@ node_modules/
 
 tokens.json
 
-# Playwright persistent browser profile (cookies, Google sign-in, cache)
+# Bot's dedicated browser profile (cookies, Google sign-in, cache)
+.bot-profile/
 .playwright-profile/

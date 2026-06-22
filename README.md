@@ -138,6 +138,42 @@ Then:
    }
    ```
 
+### The bot's identity (sign in once)
+
+Most meetings **block anonymous/signed-out guests** (Google shows *"You can't join this
+video call"*), so the bot runs as a **signed-in Google user**.
+
+The bot uses its **own dedicated Chrome profile** (`./.bot-profile`) so it can run *while
+your normal Chrome is open*. Sign it in once:
+
+```bash
+pnpm login
+```
+
+A real Chrome window opens on the bot's profile — log in as **team.toonitt@gmail.com**
+(complete any 2FA), then press **ENTER** to save. Reused on every later run.
+
+> **Why a dedicated profile?** Chrome locks its whole *User Data* folder while open, so the
+> bot can't share your everyday Chrome's profile unless you quit Chrome entirely every time.
+> A separate profile sidesteps that. Uses real Chrome by default (`channel: "chrome"`); set
+> `BROWSER_CHANNEL=chromium` to use Playwright's bundled build.
+
+<details>
+<summary>Advanced: open an installed Chrome profile directly</summary>
+
+If you'd rather reuse an existing signed-in profile (no separate login), set
+`USE_SYSTEM_PROFILE=true` and pick the profile directory (`pnpm profiles` lists them):
+
+```ini
+# .env
+USE_SYSTEM_PROFILE=true
+CHROME_PROFILE_DIRECTORY=Profile 12   # "Live Tutor" — the directory, not the display name
+```
+
+⚠️ In this mode you must **fully quit Google Chrome** (every window + tray) before running
+the bot, because Chrome locks the shared *User Data* folder.
+</details>
+
 ### Sending the bot into a call
 
 ```bash
@@ -145,10 +181,10 @@ pnpm bot https://meet.google.com/xxx-xxxx-xxx
 # or set MEET_URL in .env and run: pnpm bot
 ```
 
-A headed Chromium window opens, joins the meeting (mic + camera off), and stays until you
-press **Ctrl+C** (the bot leaves the call cleanly on exit). The browser uses a persistent
-profile in `.playwright-profile/` — if guest join is restricted, sign in to Google **once**
-in that window and the session is reused on later runs.
+A Chrome window opens on the chosen profile, joins the meeting (mic + camera off), and
+stays until you press **Ctrl+C** (the bot leaves the call cleanly on exit). Depending on
+the meeting's access setting, the bot may click **"Ask to join"** and wait — the **host
+then admits it** from inside the call.
 
 ---
 
@@ -175,6 +211,9 @@ live-tutor/
 ├── auth.js          # Google OAuth client, token load/save/refresh
 ├── bot/
 │   ├── meet-bot.js  # Playwright bot: joins a Meet link and stays (live plane)
+│   ├── browser.js   # Shared browser launcher: opens a specific Chrome profile
+│   ├── profiles.js  # Lists Chrome profiles → directory names (pnpm profiles)
+│   ├── login.js     # Optional: sign a fresh Google account in by hand
 │   └── selectors.js # Meet DOM selectors, isolated so they're easy to update
 ├── tokens.json      # Persisted OAuth tokens (gitignored)
 ├── .env             # Secrets (gitignored)

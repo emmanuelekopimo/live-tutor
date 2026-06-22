@@ -14,13 +14,11 @@
 //     join also works for OPEN spaces.
 
 require("dotenv").config();
-const path = require("path");
-const { chromium } = require("playwright");
+const { launchBrowser } = require("./browser");
 const S = require("./selectors");
 
 const MEET_URL = process.argv[2] || process.env.MEET_URL;
 const BOT_NAME = process.env.BOT_NAME || "Live Tutor";
-const USER_DATA_DIR = path.join(__dirname, "..", ".playwright-profile");
 
 if (!MEET_URL || !/^https:\/\/meet\.google\.com\//.test(MEET_URL)) {
   console.error(
@@ -83,22 +81,8 @@ async function join(page) {
 }
 
 async function main() {
-  log("Launching headed Chromium (persistent profile)…");
-  const context = await chromium.launchPersistentContext(USER_DATA_DIR, {
-    headless: false,
-    viewport: null,
-    args: [
-      "--use-fake-ui-for-media-stream", // auto-accept the camera/mic permission prompt
-      "--use-fake-device-for-media-stream", // provide fake devices so Meet sees a mic/cam
-      "--disable-blink-features=AutomationControlled",
-    ],
-  });
-
-  // Pre-grant media permissions for Meet so nothing blocks on a prompt.
-  await context.grantPermissions(["microphone", "camera"], {
-    origin: "https://meet.google.com",
-  });
-
+  log("Launching headed browser (persistent profile)…");
+  const context = await launchBrowser();
   const page = context.pages()[0] || (await context.newPage());
 
   // Leave gracefully on Ctrl+C.

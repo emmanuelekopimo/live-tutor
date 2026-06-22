@@ -56,6 +56,9 @@ Don't swap any of these for an alternative without asking — they were chosen d
 | `server.js` | Express entry point. Routes: `/auth`, `/auth/callback`, `/create-meet`. |
 | `auth.js`   | OAuth2 client, scopes, token load/save, refresh-token persistence. |
 | `bot/meet-bot.js` | Playwright bot: joins a Meet link, mutes, stays in call, heartbeats. |
+| `bot/browser.js` | Shared launcher: opens a specific real Chrome profile. All launch config lives here. |
+| `bot/profiles.js` | Lists Chrome profiles → directory names (`pnpm profiles`). |
+| `bot/login.js` | Optional manual Google sign-in (only if not reusing an existing profile). |
 | `bot/selectors.js` | **All** Meet DOM locators. Update here first when the join flow breaks. |
 | `tokens.json` | Saved OAuth tokens (gitignored). Deleting it forces re-consent. |
 | `.playwright-profile/` | Persistent browser profile for the bot (gitignored). Holds Google sign-in. |
@@ -64,6 +67,8 @@ Don't swap any of these for an alternative without asking — they were chosen d
 ## Environment & secrets
 
 - Required now: `CLIENT_ID`, `CLIENT_SECRET` (Google OAuth Web client).
+- Bot config: `BOT_NAME`, `MEET_URL`, `BROWSER_CHANNEL`; dedicated mode `BOT_PROFILE_DIR`;
+  system mode `USE_SYSTEM_PROFILE`, `CHROME_PROFILE_DIRECTORY`, `CHROME_USER_DATA_DIR`.
 - Add as needed: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`.
 - **Never** print, commit, or log secret values or token contents. `.env` and
   `tokens.json` are already gitignored — keep it that way.
@@ -83,6 +88,22 @@ pnpm start
 
 ## Gotchas (read before touching the live plane)
 
+- Meet **blocks anonymous/signed-out guests** on most meetings ("You can't join this video
+  call"), so the bot runs signed in. Only `accessType: OPEN` spaces (from `/create-meet`)
+  allow anonymous join.
+- **Profile model — two modes in `bot/browser.js`:**
+  - *Dedicated (default):* the bot uses its own `./.bot-profile` dir; sign in once via
+    `pnpm login` (as team.toonitt@gmail.com). Coexists with the user's normal Chrome.
+  - *System (`USE_SYSTEM_PROFILE=true`):* opens an installed profile directly
+    (`CHROME_PROFILE_DIRECTORY`, e.g. `Profile 12`; `pnpm profiles` lists them).
+- **Chrome locks the whole "User Data" folder while open** — that's why system mode needs
+  Chrome fully quit, and why the dedicated profile (separate lock) is the default. Don't
+  point the bot at the live `User Data` dir as the default. `browser.js` converts the lock
+  error into a clear message.
+- Cloning a logged-in profile's cookies is unreliable (Chrome App-Bound Encryption) — prefer
+  a fresh `pnpm login` into the dedicated profile over copying profile files.
+- The browser defaults to real **Google Chrome** (`channel: "chrome"` in `bot/browser.js`),
+  not Playwright's bundled Chromium. Override with `BROWSER_CHANNEL=chromium`.
 - Meet **blocks headless** Chromium — the Playwright bot must run `headless: false`.
 - **Tab audio capture** needs a companion Chrome extension (`tabCapture` permission);
   Playwright/plain pages can't capture tab audio directly.
