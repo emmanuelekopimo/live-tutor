@@ -13,6 +13,10 @@ module.exports = {
   micToggleOff: { role: "button", name: /turn off microphone/i },
   camToggleOff: { role: "button", name: /turn off camera/i },
 
+  // In-call unmute. The aria-label says "Turn on microphone" while muted — used to go live
+  // just before the bot speaks, then we re-mute with micToggleOff.
+  micToggleOn: { role: "button", name: /turn on microphone/i },
+
   // Join buttons. "Join now" appears for OPEN spaces / signed-in users;
   // "Ask to join" appears when the bot must be admitted by the host.
   joinNow: { role: "button", name: /join now/i },

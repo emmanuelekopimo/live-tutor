@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "meet": "node create-meet.js",
     "bot": "node bot/meet-bot.js",
     "login": "node bot/login.js",
     "profiles": "node bot/profiles.js",

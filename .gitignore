@@ -26,3 +26,6 @@ tokens.json
 # Bot's dedicated browser profile (cookies, Google sign-in, cache)
 .bot-profile/
 .playwright-profile/
+
+# Generated/cached TTS audio (e.g. welcome.wav)
+bot/assets/

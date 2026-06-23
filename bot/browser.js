@@ -54,6 +54,7 @@ async function launchBrowser() {
   const args = [
     "--use-fake-ui-for-media-stream", // auto-accept the camera/mic permission prompt
     "--use-fake-device-for-media-stream", // provide fake devices so Meet sees a mic/cam
+    "--autoplay-policy=no-user-gesture-required", // let the injected AudioContext run without a click
     "--disable-blink-features=AutomationControlled",
   ];
 

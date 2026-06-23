@@ -48,10 +48,10 @@ Live Tutor uses **two cooperating layers**:
                                  Claude Opus (tutor)                   │
                                         │                              │
                                         ▼                              │
-                            OpenAI / ElevenLabs (TTS)                  │
+                       OpenRouter gpt-audio-mini (TTS)                 │
                                         │                              │
                                         ▼                              │
-                          VB-Audio Virtual Cable ──► Playwright mic ──► Google Meet
+                    getUserMedia injection (synthetic mic) ──► Google Meet
 ```
 
 ### AI pipeline
@@ -60,8 +60,8 @@ Live Tutor uses **two cooperating layers**:
 |-------|------|
 | Speech-to-text | **OpenAI Whisper API** |
 | Reasoning / tutoring | **Claude Opus 4.x** |
-| Text-to-speech | **OpenAI TTS** or **ElevenLabs** |
-| Audio routing (bot voice → call) | **VB-Audio Virtual Cable** (Windows) |
+| Text-to-speech | **OpenRouter `openai/gpt-audio-mini`** |
+| Audio routing (bot voice → call) | **`getUserMedia` injection** (synthetic mic; VB-Audio Virtual Cable fallback) |
 | Whiteboard | **Excalidraw** window, shared via Meet screen-share |
 
 ---
@@ -77,10 +77,13 @@ Implemented today:
   - `GET /auth/callback` → exchange code for tokens
   - `GET /create-meet` → create an **OPEN** Meet space and return the join link
 - **Playwright bot** (`bot/meet-bot.js`) — milestone 1: joins a Meet link (muted,
-  camera off) and stays in the call with a heartbeat. No audio/AI yet.
+  camera off) and stays in the call with a heartbeat.
+- **Voice output** (`bot/audio-inject.js`, `bot/tts.js`) — a synthetic microphone
+  (`getUserMedia` override) plays a TTS **welcome clip** right after joining, confirming
+  the audio path. The clip is generated once via OpenRouter and cached.
 
-Not yet built: DOM watching (hand raise / mute), audio capture, the AI pipeline, the
-whiteboard, and TTS playback. These are the next milestones.
+Not yet built: DOM watching (hand raise / mute), incoming audio capture, STT, the
+tutoring loop, and the whiteboard. These are the next milestones.
 
 ---
 
@@ -90,8 +93,9 @@ whiteboard, and TTS playback. These are the next milestones.
 - A **Google Cloud project** with the **Google Meet API** enabled and an OAuth 2.0
   **Web application** client (redirect URI `http://localhost:3000/auth/callback`)
 - A Google account allowed to use the Meet API (Workspace account recommended)
-- *(for the live bot, later)* **VB-Audio Virtual Cable**, an **OpenAI API key**, an
-  **Anthropic API key**, and optionally an **ElevenLabs API key**
+- An **OpenRouter API key** (for the bot's voice / welcome clip)
+- *(for the rest of the live pipeline, later)* an **OpenAI API key** (Whisper) and an
+  **Anthropic API key** (Claude). VB-Audio Virtual Cable only if the synthetic mic is gated.
 
 ---
 
@@ -106,10 +110,13 @@ Create a `.env` file in the project root:
 ```ini
 CLIENT_ID=your-google-oauth-client-id
 CLIENT_SECRET=your-google-oauth-client-secret
+# Voice output (welcome clip + future answers):
+OPENROUTER_API_KEY=your-openrouter-key
+# WELCOME_TEXT=Welcome, everyone — ...        # optional, overrides the default greeting
+# TTS_VOICE=alloy                              # optional (alloy, echo, fable, onyx, nova, shimmer)
 # Added as the bot is built out:
 # OPENAI_API_KEY=...
 # ANTHROPIC_API_KEY=...
-# ELEVENLABS_API_KEY=...
 ```
 
 > `.env` and `tokens.json` are gitignored — never commit them.
@@ -137,6 +144,12 @@ Then:
      "meetingCode": "xxx-xxxx-xxx"
    }
    ```
+
+Once authenticated, you can skip the server and create a link straight from the CLI:
+
+```bash
+pnpm meet     # prints the meetLink (reuses tokens.json) and the matching `pnpm bot` command
+```
 
 ### The bot's identity (sign in once)
 
@@ -192,13 +205,14 @@ then admits it** from inside the call.
 
 Build order — each step builds on the previous:
 
-1. **Bot joins & stays alive** ✅ *scaffolded* (`bot/meet-bot.js`) — Playwright (headed)
-   joins the Meet link from `/create-meet` and remains in the call.
-2. **DOM watcher** — detect hand raises and mute/unmute state changes.
-3. **Audio capture** — capture tab audio (companion Chrome extension + `tabCapture`).
-4. **Transcription** — pipe captured audio to OpenAI Whisper.
-5. **Tutoring** — Claude Opus generates the answer.
-6. **Voice response** — TTS played through VB-Audio Virtual Cable into the call.
+1. **Bot joins & stays alive** ✅ (`bot/meet-bot.js`) — Playwright (headed) joins the Meet
+   link from `/create-meet` and remains in the call.
+2. **Voice output** ✅ (`bot/audio-inject.js`, `bot/tts.js`) — synthetic mic via
+   `getUserMedia` injection; plays a cached TTS welcome clip on join to prove the path.
+3. **DOM watcher** — detect hand raises and mute/unmute state changes.
+4. **Audio capture** — capture tab audio (companion Chrome extension + `tabCapture`).
+5. **Transcription** — pipe captured audio to OpenAI Whisper.
+6. **Tutoring** — Claude Opus generates the answer, spoken via the same `speak()` path.
 7. **Whiteboard** — Excalidraw window driven by Claude, screen-shared into Meet.
 
 ---
@@ -208,13 +222,16 @@ Build order — each step builds on the previous:
 ```
 live-tutor/
 ├── server.js        # Express app: auth + create-meet routes (control plane)
+├── create-meet.js   # CLI: create an OPEN Meet space and print the link (pnpm meet)
 ├── auth.js          # Google OAuth client, token load/save/refresh
 ├── bot/
-│   ├── meet-bot.js  # Playwright bot: joins a Meet link and stays (live plane)
-│   ├── browser.js   # Shared browser launcher: opens a specific Chrome profile
-│   ├── profiles.js  # Lists Chrome profiles → directory names (pnpm profiles)
-│   ├── login.js     # Optional: sign a fresh Google account in by hand
-│   └── selectors.js # Meet DOM selectors, isolated so they're easy to update
+│   ├── meet-bot.js     # Playwright bot: joins a Meet link, plays the welcome, stays
+│   ├── browser.js      # Shared browser launcher: opens a specific Chrome profile
+│   ├── audio-inject.js # Synthetic mic (getUserMedia override) + speak() helper
+│   ├── tts.js          # OpenRouter TTS + cached welcome clip
+│   ├── profiles.js     # Lists Chrome profiles → directory names (pnpm profiles)
+│   ├── login.js        # Optional: sign a fresh Google account in by hand
+│   └── selectors.js    # Meet DOM selectors, isolated so they're easy to update
 ├── tokens.json      # Persisted OAuth tokens (gitignored)
 ├── .env             # Secrets (gitignored)
 ├── package.json

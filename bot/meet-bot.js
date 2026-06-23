@@ -15,6 +15,8 @@
 
 require("dotenv").config();
 const { launchBrowser } = require("./browser");
+const audioInject = require("./audio-inject");
+const { getWelcomeClip } = require("./tts");
 const S = require("./selectors");
 
 const MEET_URL = process.argv[2] || process.env.MEET_URL;
@@ -83,6 +85,11 @@ async function join(page) {
 async function main() {
   log("Launching headed browser (persistent profile)…");
   const context = await launchBrowser();
+
+  // Register the mic-injection override BEFORE any navigation, so it patches getUserMedia
+  // ahead of Meet's own scripts. Applies to every page/frame in the context.
+  await context.addInitScript(audioInject.initScript);
+
   const page = context.pages()[0] || (await context.newPage());
 
   // Leave gracefully on Ctrl+C.
@@ -100,6 +107,17 @@ async function main() {
 
   try {
     await join(page);
+
+    // Greet the call. This both says hello and verifies the audio path is connected —
+    // a human in the call hearing it confirms the injected mic works.
+    try {
+      await page.waitForTimeout(2000); // let Meet's audio pipeline settle after join
+      log("Playing welcome audio…");
+      await audioInject.speak(page, await getWelcomeClip());
+      log("Welcome audio played.");
+    } catch (err) {
+      log("Welcome audio skipped:", err.message);
+    }
   } catch (err) {
     log("Join failed:", err.message);
     log("Leaving the window open for inspection. Press Ctrl+C to quit.");
