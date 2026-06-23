@@ -8,7 +8,7 @@
     "start": "node server.js",
     "meet": "node create-meet.js",
     "bot": "node bot/meet-bot.js",
-    "login": "node bot/login.js",
+    "signin": "node bot/login.js",
     "profiles": "node bot/profiles.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

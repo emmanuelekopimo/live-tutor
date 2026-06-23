@@ -48,7 +48,7 @@ Live Tutor uses **two cooperating layers**:
                                  Claude Opus (tutor)                   │
                                         │                              │
                                         ▼                              │
-                       OpenRouter gpt-audio-mini (TTS)                 │
+                    OpenRouter grok-voice-tts-1.0 (TTS)               │
                                         │                              │
                                         ▼                              │
                     getUserMedia injection (synthetic mic) ──► Google Meet
@@ -60,7 +60,7 @@ Live Tutor uses **two cooperating layers**:
 |-------|------|
 | Speech-to-text | **OpenAI Whisper API** |
 | Reasoning / tutoring | **Claude Opus 4.x** |
-| Text-to-speech | **OpenRouter `openai/gpt-audio-mini`** |
+| Text-to-speech | **OpenRouter `x-ai/grok-voice-tts-1.0`** (mp3) |
 | Audio routing (bot voice → call) | **`getUserMedia` injection** (synthetic mic; VB-Audio Virtual Cable fallback) |
 | Whiteboard | **Excalidraw** window, shared via Meet screen-share |
 
@@ -113,7 +113,7 @@ CLIENT_SECRET=your-google-oauth-client-secret
 # Voice output (welcome clip + future answers):
 OPENROUTER_API_KEY=your-openrouter-key
 # WELCOME_TEXT=Welcome, everyone — ...        # optional, overrides the default greeting
-# TTS_VOICE=alloy                              # optional (alloy, echo, fable, onyx, nova, shimmer)
+# TTS_VOICE=eve                                # optional, grok-voice-tts-1.0 voice
 # Added as the bot is built out:
 # OPENAI_API_KEY=...
 # ANTHROPIC_API_KEY=...

@@ -35,8 +35,9 @@ scoped one milestone at a time — the build order is in `README.md` → Roadmap
 - Google: **`@google-apps/meet`** (Meet API) + **`googleapis`** (OAuth).
 - Live bot (to add): **Playwright** (headed Chromium) + companion **Chrome extension** for `tabCapture`.
 - AI pipeline (committed): **OpenAI Whisper API** (STT) → **Claude Opus 4.x** (tutoring)
-  → **TTS via OpenRouter `openai/gpt-audio-mini`**. When adding the Claude integration, use
-  the latest Opus model and the `@anthropic-ai/sdk`.
+  → **TTS via OpenRouter `x-ai/grok-voice-tts-1.0`** (dedicated `/api/v1/audio/speech`
+  endpoint, mp3). When adding the Claude integration, use the latest Opus model and the
+  `@anthropic-ai/sdk`.
 - Audio routing (bot voice → Meet): **in-browser `getUserMedia` injection** — `bot/audio-inject.js`
   overrides `navigator.mediaDevices.getUserMedia` so Meet receives a synthetic Web Audio
   MediaStream we feed TTS clips into. No OS driver. **VB-Audio Virtual Cable** is the
@@ -62,7 +63,7 @@ Don't swap any of these for an alternative without asking — they were chosen d
 | `bot/meet-bot.js` | Playwright bot: joins a Meet link, mutes, plays the welcome clip, stays in call, heartbeats. |
 | `bot/browser.js` | Shared launcher: opens a specific real Chrome profile. All launch config lives here. |
 | `bot/audio-inject.js` | Mic injection: `initScript` overrides `getUserMedia`; `speak()` does unmute → play → mute. |
-| `bot/tts.js` | OpenRouter `gpt-audio-mini` TTS; caches the welcome clip to `bot/assets/welcome.wav`. |
+| `bot/tts.js` | OpenRouter `grok-voice-tts-1.0` TTS (mp3); caches the welcome clip to `bot/assets/welcome.mp3`. |
 | `bot/profiles.js` | Lists Chrome profiles → directory names (`pnpm profiles`). |
 | `bot/login.js` | Optional manual Google sign-in (only if not reusing an existing profile). |
 | `bot/selectors.js` | **All** Meet DOM locators. Update here first when the join flow breaks. |
@@ -76,7 +77,7 @@ Don't swap any of these for an alternative without asking — they were chosen d
 - Bot config: `BOT_NAME`, `MEET_URL`, `BROWSER_CHANNEL`; dedicated mode `BOT_PROFILE_DIR`;
   system mode `USE_SYSTEM_PROFILE`, `CHROME_PROFILE_DIRECTORY`, `CHROME_USER_DATA_DIR`.
 - Audio/TTS: `OPENROUTER_API_KEY` (required for the welcome clip); optional `WELCOME_TEXT`,
-  `TTS_VOICE` (default `alloy`).
+  `TTS_VOICE` (default `eve`).
 - Add as needed: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`.
 - **Never** print, commit, or log secret values or token contents. `.env` and
   `tokens.json` are already gitignored — keep it that way.
