@@ -209,7 +209,11 @@ Build order — each step builds on the previous:
    link from `/create-meet` and remains in the call.
 2. **Voice output** ✅ (`bot/audio-inject.js`, `bot/tts.js`) — synthetic mic via
    `getUserMedia` injection; plays a cached TTS welcome clip on join to prove the path.
-3. **DOM watcher** — detect hand raises and mute/unmute state changes.
+3. **DOM watcher / floor management** ✅ (`bot/moderator.js`) — watches the People panel
+   for raised hands and gives the floor to one student at a time: mutes the room
+   (best-effort) and calls the student by name. Note: Meet forbids a host from unmuting
+   others, so the student unmutes themselves; with no host rights it degrades to a
+   voice-only handoff.
 4. **Audio capture** — capture tab audio (companion Chrome extension + `tabCapture`).
 5. **Transcription** — pipe captured audio to OpenAI Whisper.
 6. **Tutoring** — Claude Opus generates the answer, spoken via the same `speak()` path.
@@ -229,6 +233,7 @@ live-tutor/
 │   ├── browser.js      # Shared browser launcher: opens a specific Chrome profile
 │   ├── audio-inject.js # Synthetic mic (getUserMedia override) + speak() helper
 │   ├── tts.js          # OpenRouter TTS + cached welcome clip
+│   ├── moderator.js    # Floor management: hand-raise watch + best-effort mute control
 │   ├── profiles.js     # Lists Chrome profiles → directory names (pnpm profiles)
 │   ├── login.js        # Optional: sign a fresh Google account in by hand
 │   └── selectors.js    # Meet DOM selectors, isolated so they're easy to update

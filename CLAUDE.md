@@ -21,11 +21,16 @@ Playwright bot, and vice versa — they cooperate.
 
 ## Current focus
 
-Milestone 1 — **bot joins a Meet link and stays in the call** — is scaffolded in
-`bot/meet-bot.js` (+ `bot/selectors.js`). It runs headed, joins muted/camera-off, and
-heartbeats. The **next** milestone is the DOM watcher (hand raise + mute/unmute
-detection). Everything past that (audio, STT, LLM, TTS, whiteboard) is later. Keep changes
-scoped one milestone at a time — the build order is in `README.md` → Roadmap; follow it.
+Milestone 1 (**bot joins and stays in the call**) and the voice-output milestone are done.
+Milestone 2 — **floor management** — is now in `bot/moderator.js`: it watches the People
+panel for raised hands and gives the floor to one student at a time (mute the room
+best-effort + call the student by name). Key constraint baked into the design: **Meet does
+not let a host unmute another participant**, so the bot floor-*clears* and the student
+unmutes themselves; with no host rights it degrades to a voice-only handoff. The moderator
+selectors in `selectors.js` are all `[VERIFY]` — they need confirmation against a live call.
+The **next** milestone is audio capture (companion Chrome extension + `tabCapture`).
+Everything past that (STT, LLM, whiteboard) is later. Keep changes scoped one milestone at
+a time — the build order is in `README.md` → Roadmap; follow it.
 
 ## Tech stack & committed choices
 
@@ -64,6 +69,7 @@ Don't swap any of these for an alternative without asking — they were chosen d
 | `bot/browser.js` | Shared launcher: opens a specific real Chrome profile. All launch config lives here. |
 | `bot/audio-inject.js` | Mic injection: `initScript` overrides `getUserMedia`; `speak()` does unmute → play → mute. |
 | `bot/tts.js` | OpenRouter `grok-voice-tts-1.0` TTS (mp3); caches the welcome clip to `bot/assets/welcome.mp3`. |
+| `bot/moderator.js` | Floor management: opens the People panel, reads raised hands (ordered), mutes the room best-effort, runs the one-speaker-at-a-time state machine. |
 | `bot/profiles.js` | Lists Chrome profiles → directory names (`pnpm profiles`). |
 | `bot/login.js` | Optional manual Google sign-in (only if not reusing an existing profile). |
 | `bot/selectors.js` | **All** Meet DOM locators. Update here first when the join flow breaks. |

@@ -16,6 +16,7 @@
 require("dotenv").config();
 const { launchBrowser } = require("./browser");
 const audioInject = require("./audio-inject");
+const moderator = require("./moderator");
 const { getWelcomeClip } = require("./tts");
 const S = require("./selectors");
 
@@ -46,9 +47,31 @@ async function clickIfPresent(page, sel, timeout = 6000) {
   }
 }
 
+// Meet bounces bad/expired/unstarted links to a "/_meet/whoops" page ("Invalid video call
+// name", etc.). Throw a clear reason here so we don't waste 60s waiting for a join button
+// that will never appear. Returns nothing; throws if we're on the error page.
+async function assertNotErrorPage(page) {
+  // Give a client-side redirect a moment to land before judging the URL.
+  await page.waitForTimeout(1500);
+  if (!S.errorPageUrl.test(page.url())) return;
+  let reason = "";
+  try {
+    reason = (await page.getByRole("heading").first().innerText({ timeout: 2000 })).trim();
+  } catch {
+    // No heading readable — fall back to a generic message below.
+  }
+  throw new Error(
+    `Meet rejected this link${reason ? `: "${reason}"` : ""}. ` +
+      "Check MEET_URL — it may be wrong, expired, or for a meeting that hasn't started.",
+  );
+}
+
 async function join(page) {
   log("Opening", MEET_URL);
   await page.goto(MEET_URL, { waitUntil: "domcontentloaded" });
+
+  // Bail early on Meet's "Invalid video call name" / "whoops" page.
+  await assertNotErrorPage(page);
 
   // Clear any interstitial popups.
   for (const sel of S.dismissButtons) await clickIfPresent(page, sel, 2500);
@@ -92,12 +115,16 @@ async function main() {
 
   const page = context.pages()[0] || (await context.newPage());
 
+  // Floor-management handle; started after the welcome clip, stopped on the way out.
+  let watch = null;
+
   // Leave gracefully on Ctrl+C.
   let leaving = false;
   const shutdown = async () => {
     if (leaving) return;
     leaving = true;
     log("Shutting down — leaving the call…");
+    if (watch) watch.stop();
     await clickIfPresent(page, S.leaveCall, 3000);
     await context.close().catch(() => {});
     process.exit(0);
@@ -118,20 +145,23 @@ async function main() {
     } catch (err) {
       log("Welcome audio skipped:", err.message);
     }
+
+    // Begin floor management: watch raised hands and give the floor to one student at a
+    // time. Mute is best-effort — if the bot lacks host rights it degrades to a voice-only
+    // handoff ("please unmute yourself"). The watcher also folds in the liveness check, so
+    // it doubles as the keep-alive heartbeat.
+    watch = moderator.startHandWatch(page, {
+      onState: (s) =>
+        log(
+          `floor: ${s.state}` +
+            (s.current ? ` (${s.current.name})` : "") +
+            (s.degraded ? " [no mute rights — voice-only]" : ""),
+        ),
+    });
   } catch (err) {
     log("Join failed:", err.message);
     log("Leaving the window open for inspection. Press Ctrl+C to quit.");
   }
-
-  // Keep-alive: stay in the call until killed. Warn if we get dropped.
-  setInterval(async () => {
-    const stillIn = await page
-      .getByRole(S.leaveCall.role, { name: S.leaveCall.name })
-      .first()
-      .isVisible()
-      .catch(() => false);
-    log(stillIn ? "Heartbeat: still in the call." : "⚠️ Heartbeat: no longer in the call.");
-  }, 30000);
 }
 
 main().catch((err) => {
