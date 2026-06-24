@@ -81,9 +81,15 @@ Implemented today:
 - **Voice output** (`bot/audio-inject.js`, `bot/tts.js`) — a synthetic microphone
   (`getUserMedia` override) plays a TTS **welcome clip** right after joining, confirming
   the audio path. The clip is generated once via OpenRouter and cached.
+- **Floor management** (`bot/moderator.js`) — watches the People panel for raised hands and
+  hands the floor to one student at a time (mutes the room best-effort + calls them by name).
+- **Whiteboard sharing** (`bot/board/`, `bot/board-server.js`, `bot/present.js`) — a
+  view-only **Excalidraw** board, served locally, opened in a second tab and screen-shared
+  into the call. A fixed **status overlay** (bottom-right, pinned to the viewport) shows what
+  the tutor is doing, driven by the floor-state machine.
 
-Not yet built: DOM watching (hand raise / mute), incoming audio capture, STT, the
-tutoring loop, and the whiteboard. These are the next milestones.
+Not yet built: drawing/maths *onto* the shared board, incoming audio capture, STT, and the
+tutoring loop. These are the next milestones.
 
 ---
 
@@ -214,10 +220,16 @@ Build order — each step builds on the previous:
    (best-effort) and calls the student by name. Note: Meet forbids a host from unmuting
    others, so the student unmutes themselves; with no host rights it degrades to a
    voice-only handoff.
-4. **Audio capture** — capture tab audio (companion Chrome extension + `tabCapture`).
-5. **Transcription** — pipe captured audio to OpenAI Whisper.
-6. **Tutoring** — Claude Opus generates the answer, spoken via the same `speak()` path.
-7. **Whiteboard** — Excalidraw window driven by Claude, screen-shared into Meet.
+4. **Whiteboard sharing** ✅ (`bot/board/`, `bot/board-server.js`, `bot/present.js`) — a
+   view-only Excalidraw board served locally, opened in a second tab and screen-shared into
+   the call; a fixed bottom-right status overlay shows tutor state (wired to the floor-state
+   machine). Drawing *onto* the board is the next sub-step. *(Reordered ahead of audio
+   capture at the team's request.)*
+5. **Audio capture** — capture tab audio (companion Chrome extension + `tabCapture`).
+6. **Transcription** — pipe captured audio to OpenAI Whisper.
+7. **Tutoring** — Claude Opus generates the answer, spoken via the same `speak()` path.
+8. **Whiteboard drawing** — Claude drives the Excalidraw board through a control API
+   (shapes / text / arrows, plus MathJax rendered to SVG and inserted as image elements).
 
 ---
 
@@ -234,6 +246,10 @@ live-tutor/
 │   ├── audio-inject.js # Synthetic mic (getUserMedia override) + speak() helper
 │   ├── tts.js          # OpenRouter TTS + cached welcome clip
 │   ├── moderator.js    # Floor management: hand-raise watch + best-effort mute control
+│   ├── present.js      # Drives Meet's "Present now → A tab" to share the board
+│   ├── board-server.js # Tiny static server for the board page (loopback)
+│   ├── board/          # The shared whiteboard tab (view-only Excalidraw + status overlay)
+│   │   └── index.html
 │   ├── profiles.js     # Lists Chrome profiles → directory names (pnpm profiles)
 │   ├── login.js        # Optional: sign a fresh Google account in by hand
 │   └── selectors.js    # Meet DOM selectors, isolated so they're easy to update

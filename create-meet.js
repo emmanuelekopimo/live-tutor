@@ -30,7 +30,12 @@ async function main() {
   const meetClient = new SpacesServiceClient({ authClient: oauth2Client });
 
   const [space] = await meetClient.createSpace({
-    space: { config: { accessType: "OPEN" } }, // anyone with the link can join
+    space: {
+      config: {
+        accessType: "OPEN", // anyone with the link can join
+        moderation: "ON", // host management on by default → the bot can "Mute all" on join
+      },
+    },
   });
 
   // Human-friendly summary, then the bare link last so it's easy to copy/pipe.

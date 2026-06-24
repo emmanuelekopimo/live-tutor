@@ -29,3 +29,6 @@ tokens.json
 
 # Generated/cached TTS audio (e.g. welcome.wav)
 bot/assets/
+
+# DOM debug snapshots (BOT_DEBUG_DOM=1)
+bot/debug/

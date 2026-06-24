@@ -28,9 +28,20 @@ best-effort + call the student by name). Key constraint baked into the design: *
 not let a host unmute another participant**, so the bot floor-*clears* and the student
 unmutes themselves; with no host rights it degrades to a voice-only handoff. The moderator
 selectors in `selectors.js` are all `[VERIFY]` — they need confirmation against a live call.
-The **next** milestone is audio capture (companion Chrome extension + `tabCapture`).
-Everything past that (STT, LLM, whiteboard) is later. Keep changes scoped one milestone at
-a time — the build order is in `README.md` → Roadmap; follow it.
+
+**Whiteboard sharing** is now done (reordered ahead of audio capture at the team's request):
+the bot serves a view-only **Excalidraw** board (`bot/board/index.html`) from a tiny local
+http server (`bot/board-server.js`), opens it in a second tab, and screen-shares it via Meet's
+"Present now → A tab" (`bot/present.js`). A fixed bottom-right **status overlay** in the board
+page (`window.TutorBoard.setStatus`) shows tutor state, driven by the floor-state machine
+(`meet-bot.js` `onState` → `pushStatus`). The present selectors in `selectors.js` are `[VERIFY]`.
+The board surface is view-only and **nothing draws on it yet** — the Excalidraw control API
+(`window.excalidrawAPI` is already parked on the page) is the next sub-step.
+
+The **next** milestones: drawing/maths onto the board (Excalidraw control API + MathJax → SVG
+→ image elements), then audio capture (companion Chrome extension + `tabCapture`), then STT
+and the LLM tutoring loop. Keep changes scoped one milestone at a time — the build order is in
+`README.md` → Roadmap; follow it.
 
 ## Tech stack & committed choices
 
@@ -38,7 +49,10 @@ a time — the build order is in `README.md` → Roadmap; follow it.
 - Package manager: **pnpm** (`pnpm-lock.yaml` is the lockfile — don't introduce npm/yarn lockfiles).
 - Web server: **Express 5**.
 - Google: **`@google-apps/meet`** (Meet API) + **`googleapis`** (OAuth).
-- Live bot (to add): **Playwright** (headed Chromium) + companion **Chrome extension** for `tabCapture`.
+- Live bot: **Playwright** (headed Chromium); companion **Chrome extension** for `tabCapture` still to add.
+- Whiteboard: **Excalidraw**, embedded via **ESM + import maps** from `esm.sh` (no bundler —
+  keeps the no-build, CommonJS project intact), served by a tiny built-in-`http` static server.
+  Math (later): **MathJax** `tex2svg` → SVG → data URL → Excalidraw **image element**.
 - AI pipeline (committed): **OpenAI Whisper API** (STT) → **Claude Opus 4.x** (tutoring)
   → **TTS via OpenRouter `x-ai/grok-voice-tts-1.0`** (dedicated `/api/v1/audio/speech`
   endpoint, mp3). When adding the Claude integration, use the latest Opus model and the
@@ -70,6 +84,9 @@ Don't swap any of these for an alternative without asking — they were chosen d
 | `bot/audio-inject.js` | Mic injection: `initScript` overrides `getUserMedia`; `speak()` does unmute → play → mute. |
 | `bot/tts.js` | OpenRouter `grok-voice-tts-1.0` TTS (mp3); caches the welcome clip to `bot/assets/welcome.mp3`. |
 | `bot/moderator.js` | Floor management: opens the People panel, reads raised hands (ordered), mutes the room best-effort, runs the one-speaker-at-a-time state machine. |
+| `bot/board/index.html` | The shared whiteboard tab: view-only Excalidraw + fixed bottom-right status overlay (`window.TutorBoard.setStatus`). Title "Live Tutor Board" — matched by the screen-share auto-select flag. |
+| `bot/board-server.js` | Tiny built-in-`http` static server for `bot/board/` on a loopback port; returns `{ url, close }`. |
+| `bot/present.js` | Drives Meet's "Present now → A tab" to screen-share the board (best-effort, never throws). |
 | `bot/profiles.js` | Lists Chrome profiles → directory names (`pnpm profiles`). |
 | `bot/login.js` | Optional manual Google sign-in (only if not reusing an existing profile). |
 | `bot/selectors.js` | **All** Meet DOM locators. Update here first when the join flow breaks. |
@@ -129,12 +146,46 @@ pnpm start
 - Meet **blocks headless** Chromium — the Playwright bot must run `headless: false`.
 - **Tab audio capture** needs a companion Chrome extension (`tabCapture` permission);
   Playwright/plain pages can't capture tab audio directly.
+- **Sharing the board** relies on launch flags (`bot/browser.js`) to auto-pick the capture
+  source so there's no manual picker click: `--auto-select-desktop-capture-source=Live Tutor
+  Board` (the classic, broadly-supported one that actually engages) **plus** the newer
+  `--auto-select-tab-capture-source-by-title=Live Tutor Board` (not honoured on every build).
+  Both match the source named exactly **"Live Tutor Board"**, so the board page's
+  `document.title` MUST stay exactly that. **Crucially, `--use-fake-ui-for-media-stream` must
+  NOT be set:** for `getDisplayMedia` it short-circuits the picker and returns the **entire
+  screen** (infinity-mirror share) *before* the auto-select flags can run — they only take
+  effect inside the picker. With fake-ui off, the picker runs and the auto-select resolves it
+  to the board tab with no dialog; the mic/cam permission comes from `context.grantPermissions()`
+  instead. The present gesture must fire on the **Meet** tab (`present.js` calls
+  `bringToFront()`), and the Meet tab is left in front for two reasons: moderation stays
+  responsive, AND the board tab must NOT be focused (a focused tab makes the Chrome *window*
+  title "Live Tutor Board", so the auto-select grabs the whole window instead of the tab). A
+  *captured* tab keeps rendering in the background, so the board still shows. The board loads
+  Excalidraw/React from **esm.sh at runtime** (needs internet; vendoring `dist` locally is a
+  later hardening step).
+- **Never set `--use-fake-device-for-media-stream`** (`bot/browser.js`): it hijacks
+  `getDisplayMedia` so screen-share shows Chromium's **green test-pattern + beep** instead of
+  the real board tab. The mic path doesn't need it — `audio-inject.js` overrides
+  `getUserMedia` with a synthetic stream — and the bot joins camera-off, so the fake device
+  is pure downside. `--use-fake-ui-for-media-stream` is also OFF (it breaks the board share —
+  see above); mic/cam are auto-granted via `context.grantPermissions()` in `browser.js`.
 - Meet's **DOM selectors change often** — prefer `data-*` attributes over class names and
   expect ongoing maintenance.
 - Joining/receiving media will require **additional OAuth scopes** beyond the current
   `meetings.space.created` scope in `auth.js`.
-- `/create-meet` creates an **OPEN** space (anyone with the link can join) — be deliberate
-  if changing `accessType`.
+- **Muting others does NOT need Host Management / "Mute all".** As long as the bot account
+  is host/co-host (it creates the space, so it is — see [[bot-account-is-meeting-host]]), each
+  People-panel row exposes an inline **"Mute <name>'s microphone"** button. `moderator.muteAll()`
+  mutes the room by clicking each individually; `participantMicState()` reads mic state from the
+  same control (unmuted → "Mute …'s microphone"; muted → "You can't unmute someone else"). So
+  Host Management being off in the UI is fine. Don't rely on a "Mute all" button, and avoid
+  Meet's **Audio Lock** — it would block a called student from unmuting.
+- `/create-meet` (and `pnpm meet`) still create the space with `moderation: "ON"` (harmless;
+  turns host management on by default), but it is **not required** for the bot to mute. Be
+  deliberate if changing `accessType` or `moderation`.
+- **DOM debugging:** `BOT_DEBUG=1` logs panel-scan summaries to the console; `BOT_DEBUG_DOM=1`
+  streams full per-tick DOM snapshots (listitems + mute/hand/host controls, with outerHTML) to
+  `bot/debug/dom-<session>.jsonl` (gitignored) — use it to fix drifting Meet selectors.
 
 ## Environment specifics
 

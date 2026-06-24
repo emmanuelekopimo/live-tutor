@@ -64,14 +64,35 @@ module.exports = {
   // Per-row "More actions" kebab that reveals Mute / Lower hand for one participant. [VERIFY]
   moreActions: { role: "button", name: /more actions|more options/i },
 
-  // Per-participant mute. May render as an inline "button" or a popup "menuitem". [VERIFY]
-  muteParticipant: { role: "menuitem", name: /^mute/i },
+  // Per-participant mute. Confirmed: an inline <button> with accessible name
+  // "Mute <name>'s microphone" (only present, for a host, when that person is unmuted).
+  // moderator.js targets it dynamically; this entry documents the shape.
+  muteParticipant: { role: "button", name: /mute\b.*microphone/i },
 
-  // Lower another participant's hand (host cleanup; optional). [VERIFY]
-  lowerHand: { role: "menuitem", name: /lower hand/i },
+  // Lower another participant's hand. Confirmed: a <button> "Lower <name>'s hand" (text
+  // "Lower") in the Raised-hands row, plus a "Lower all hands" button. moderator.lowerHand()
+  // builds the per-name regex dynamically; this documents the control.
+  lowerHand: { role: "button", name: /lower .*'?s hand|lower all hands/i },
 
   // A single participant row, addressed by the participant's name. This is a FUNCTION
   // (not a static object) because the accessible name is per-participant — a small,
   // deliberate deviation from the shape above. `name` may be a string or RegExp. [VERIFY]
   participantRow: (name) => ({ role: "listitem", name }),
+
+  // --- Screen share / presenting (board sharing) ---
+  // The bot presents the Tutor board tab into the call. After "Present now" -> "A tab",
+  // Chrome's native source picker is auto-resolved by the launch flag
+  // --auto-select-tab-capture-source-by-title (see bot/browser.js), so there's no native
+  // dialog to drive — only Meet's own menu. All [VERIFY]; confirm against a live call and
+  // tighten. A stale selector here only means "no board on screen", never a crash.
+
+  // Bottom-bar control that opens the present menu. Has rendered as "Present now" and
+  // "Share screen". [VERIFY]
+  presentNow: { role: "button", name: /present now|share screen|present/i },
+
+  // The "A tab" / "A Chrome tab" entry in the present menu. May be a menuitem or button. [VERIFY]
+  presentTab: { role: "menuitem", name: /a (chrome )?tab/i },
+
+  // Stop sharing the board (cleanup / handing the screen back). [VERIFY]
+  stopPresenting: { role: "button", name: /stop presenting|stop sharing/i },
 };

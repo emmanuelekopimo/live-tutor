@@ -31,6 +31,7 @@ app.get("/create-meet", async (req, res) => {
       space: {
         config: {
           accessType: "OPEN", // anyone with the link can join
+          moderation: "ON", // host management on by default → the bot can "Mute all" on join
         },
       },
     });

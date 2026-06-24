@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Title is load-bearing: bot/browser.js auto-selects THIS tab for screen-share by
+         matching it (--auto-select-tab-capture-source-by-title=Live Tutor Board). -->
+    <title>Live Tutor Board</title>
+
+    <!-- Excalidraw 0.18 embeds via ESM + import maps (no bundler — matches the no-build,
+         CommonJS project). React/Excalidraw load from esm.sh at runtime. -->
+    <link
+      rel="stylesheet"
+      href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css"
+    />
+    <script>
+      // Excalidraw fetches its fonts/assets from this base.
+      window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.0.0",
+          "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
+          "react-dom": "https://esm.sh/react-dom@19.0.0",
+          "react-dom/client": "https://esm.sh/react-dom@19.0.0/client"
+        }
+      }
+    </script>
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        width: 100%;
+        background: #ffffff;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      /* The Excalidraw canvas fills the tab. */
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+
+      /* Status overlay — pinned to the viewport (position: fixed) so it NEVER pans or zooms
+         with the Excalidraw canvas; it rides inside the shared tab, so every participant sees
+         it. */
+      #tutor-status {
+        position: fixed;
+        bottom: 18px;
+        right: 18px;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 360px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(17, 24, 39, 0.92);
+        color: #f9fafb;
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.2;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+        pointer-events: none; /* never intercept clicks on the board */
+        user-select: none;
+      }
+      #tutor-status .ts-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #9ca3af; /* idle grey; recolored per state below */
+        flex: 0 0 auto;
+      }
+      #tutor-status .ts-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Per-state dot colour; active states pulse so the room can tell the tutor is engaged. */
+      #tutor-status[data-state="waiting"] .ts-dot {
+        background: #f59e0b;
+      }
+      #tutor-status[data-state="listening"] .ts-dot {
+        background: #22c55e;
+        animation: ts-pulse 1.4s ease-in-out infinite;
+      }
+      #tutor-status[data-state="thinking"] .ts-dot {
+        background: #a855f7;
+        animation: ts-pulse 1.4s ease-in-out infinite;
+      }
+      #tutor-status[data-state="drawing"] .ts-dot {
+        background: #3b82f6;
+        animation: ts-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes ts-pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.45;
+          transform: scale(1.35);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="tutor-status" data-state="idle">
+      <span class="ts-dot"></span>
+      <span class="ts-label">Waiting for a raised hand</span>
+    </div>
+
+    <!-- The overlay API is a PLAIN script (no module/CDN dependency) so it works the instant
+         the page loads and even if Excalidraw is slow to fetch. The bot calls
+         window.TutorBoard.setStatus(state, { name }) via page.evaluate. -->
+    <script>
+      (function () {
+        var LABELS = {
+          idle: function () {
+            return "Waiting for a raised hand";
+          },
+          waiting: function (name) {
+            return name ? "Waiting for " + name + " to unmute and speak" : "Waiting for someone to speak";
+          },
+          listening: function (name) {
+            return name ? "Listening to " + name : "Listening";
+          },
+          thinking: function () {
+            return "Thinking about what was said";
+          },
+          drawing: function () {
+            return "Drawing on the board";
+          },
+        };
+        window.TutorBoard = {
+          // state: idle | waiting | listening | thinking | drawing. Unknown states fall back
+          // to idle. Today only idle/waiting/listening are driven (from the floor-state
+          // machine); thinking/drawing arrive with the AI pipeline.
+          setStatus: function (state, opts) {
+            opts = opts || {};
+            var el = document.getElementById("tutor-status");
+            if (!el) return;
+            var known = Object.prototype.hasOwnProperty.call(LABELS, state);
+            var key = known ? state : "idle";
+            el.setAttribute("data-state", key);
+            el.querySelector(".ts-label").textContent = LABELS[key](opts.name);
+          },
+        };
+      })();
+    </script>
+
+    <!-- Excalidraw, view-only. The excalidrawAPI ref is parked on window for the later
+         draw/math control pass; nothing draws yet this milestone. -->
+    <script type="module">
+      import * as ExcalidrawLib from "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom";
+      import React from "react";
+      import ReactDOM from "react-dom/client";
+
+      const App = () =>
+        React.createElement(ExcalidrawLib.Excalidraw, {
+          // Read-only surface: students watch, the bot draws programmatically (later).
+          viewModeEnabled: true,
+          // Strip the editing chrome for a clean presentation look.
+          UIOptions: {
+            canvasActions: {
+              changeViewBackgroundColor: false,
+              clearCanvas: false,
+              export: false,
+              loadScene: false,
+              saveToActiveFile: false,
+              saveAsImage: false,
+              toggleTheme: false,
+            },
+          },
+          initialData: { appState: { viewBackgroundColor: "#ffffff" } },
+          excalidrawAPI: (api) => {
+            window.excalidrawAPI = api; // reserved for the draw/math control API
+          },
+        });
+
+      ReactDOM.createRoot(document.getElementById("app")).render(React.createElement(App));
+    </script>
+  </body>
+</html>

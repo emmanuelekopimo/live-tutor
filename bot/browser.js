@@ -52,10 +52,24 @@ const USER_DATA_DIR = USE_SYSTEM_PROFILE ? SYSTEM_USER_DATA_DIR : BOT_PROFILE_DI
 
 async function launchBrowser() {
   const args = [
-    "--use-fake-ui-for-media-stream", // auto-accept the camera/mic permission prompt
-    "--use-fake-device-for-media-stream", // provide fake devices so Meet sees a mic/cam
+    // NB: deliberately NO --use-fake-ui-for-media-stream. For getDisplayMedia it short-circuits
+    // the source picker and returns the ENTIRE SCREEN — which ALSO stops the
+    // --auto-select-*-capture-source flags below from ever running (the infinity-mirror bug).
+    // The mic/cam permission is granted instead via context.grantPermissions() further down,
+    // and audio-inject.js supplies the actual audio stream, so fake-ui buys us nothing here.
+    // Also do NOT add --use-fake-device-for-media-stream: it makes getDisplayMedia return
+    // Chromium's green test-pattern + beep instead of the real tab.
     "--autoplay-policy=no-user-gesture-required", // let the injected AudioContext run without a click
     "--disable-blink-features=AutomationControlled",
+    // Auto-resolve the getDisplayMedia picker to the board tab by source title, with NO dialog
+    // shown — only works because fake-ui is OFF (above), so the picker code path actually runs.
+    // --auto-select-desktop-capture-source is the classic, broadly supported flag; the
+    // *-tab-capture-source-by-title variant is newer, so we set both. Both target the source
+    // named exactly "Live Tutor Board" (bot/board's document.title). The board tab must NOT be
+    // focused at capture time, or the Chrome window shares that same title and gets grabbed
+    // instead — present.js keeps the Meet tab in front. Only the bot calls getDisplayMedia.
+    "--auto-select-desktop-capture-source=Live Tutor Board",
+    "--auto-select-tab-capture-source-by-title=Live Tutor Board",
   ];
 
   // Only select a sub-profile in system mode; the dedicated dir uses its own Default.

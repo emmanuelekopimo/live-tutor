@@ -17,6 +17,8 @@ require("dotenv").config();
 const { launchBrowser } = require("./browser");
 const audioInject = require("./audio-inject");
 const moderator = require("./moderator");
+const board = require("./board-server");
+const { presentBoard } = require("./present");
 const { getWelcomeClip } = require("./tts");
 const S = require("./selectors");
 
@@ -33,6 +35,16 @@ if (!MEET_URL || !/^https:\/\/meet\.google\.com\//.test(MEET_URL)) {
 }
 
 const log = (...args) => console.log(`[meet-bot ${new Date().toISOString()}]`, ...args);
+
+// Floor-state machine (moderator.js) -> on-board status overlay. Only idle/waiting/listening
+// are derivable today; thinking/drawing arrive with the AI pipeline.
+const FLOOR_TO_STATUS = {
+  IDLE: "idle",
+  CLAIMING: "waiting",
+  WAITING: "waiting",
+  SPEAKING: "listening",
+  RELEASING: "idle",
+};
 
 // Click a locator if it shows up within `timeout`, but never throw on absence —
 // the join flow varies (signed in vs guest, popups that may or may not appear).
@@ -117,6 +129,20 @@ async function main() {
 
   // Floor-management handle; started after the welcome clip, stopped on the way out.
   let watch = null;
+  // Whiteboard: a second tab the bot screen-shares, plus its static server.
+  let boardSrv = null;
+  let boardPage = null;
+
+  // Push the floor state to the on-board status overlay (fire-and-forget; the board may not
+  // be up yet, and a stale evaluate must never break moderation).
+  const pushStatus = (s) => {
+    if (!boardPage) return;
+    const state = FLOOR_TO_STATUS[s.state] || "idle";
+    const name = s.current ? s.current.name : null;
+    boardPage
+      .evaluate(({ state, name }) => window.TutorBoard.setStatus(state, { name }), { state, name })
+      .catch(() => {});
+  };
 
   // Leave gracefully on Ctrl+C.
   let leaving = false;
@@ -127,6 +153,7 @@ async function main() {
     if (watch) watch.stop();
     await clickIfPresent(page, S.leaveCall, 3000);
     await context.close().catch(() => {});
+    if (boardSrv) await boardSrv.close().catch(() => {});
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
@@ -146,17 +173,35 @@ async function main() {
       log("Welcome audio skipped:", err.message);
     }
 
+    // Bring up the shared whiteboard: open the board tab and present it into the call. It
+    // stays shared for the whole session; the fixed bottom-right overlay shows tutor state.
+    // Best-effort — a missing present control just means no board, not a dead bot. The Meet
+    // tab is left in front so moderation (People-panel reads) stays responsive; a captured
+    // tab keeps rendering in the background.
+    try {
+      boardSrv = await board.start();
+      boardPage = await context.newPage();
+      await boardPage.goto(boardSrv.url, { waitUntil: "domcontentloaded" });
+      await boardPage.waitForFunction(() => !!window.TutorBoard, { timeout: 10000 });
+      await presentBoard(page);
+      log("Board shared.");
+    } catch (err) {
+      log("Board share skipped:", err.message);
+    }
+
     // Begin floor management: watch raised hands and give the floor to one student at a
     // time. Mute is best-effort — if the bot lacks host rights it degrades to a voice-only
     // handoff ("please unmute yourself"). The watcher also folds in the liveness check, so
     // it doubles as the keep-alive heartbeat.
     watch = moderator.startHandWatch(page, {
-      onState: (s) =>
+      onState: (s) => {
         log(
           `floor: ${s.state}` +
             (s.current ? ` (${s.current.name})` : "") +
             (s.degraded ? " [no mute rights — voice-only]" : ""),
-        ),
+        );
+        pushStatus(s);
+      },
     });
   } catch (err) {
     log("Join failed:", err.message);
