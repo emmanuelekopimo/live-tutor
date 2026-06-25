@@ -310,21 +310,14 @@ async function participantMicState(page, name) {
       const pid = row && row.getAttribute("data-participant-id");
       if (!pid) return "unknown";
       const els = Array.from(document.querySelectorAll("[data-participant-id=" + JSON.stringify(pid) + "]"));
-      const blob = els
-        .map((el) => {
-          const labels = Array.from(el.querySelectorAll("*"))
-            .map((c) => c.getAttribute && c.getAttribute("aria-label"))
-            .filter(Boolean)
-            .join(" ");
-          return el.textContent + " " + labels;
-        })
-        .join(" ")
-        .toLowerCase();
-      // Muted: the crossed-mic icon or the disabled-unmute tooltip.
-      if (/mic_off|can'?t unmute|cannot unmute/.test(blob)) return "muted";
-      // Unmuted: the live mic icon. (We deliberately do NOT use "Mute X's microphone" — it's
-      // present in every state — so absence of a real mic icon stays "unknown".)
-      if (/mic_none|mic_external_on|\bmic\b/.test(blob)) return "unmuted";
+      const blob = els.map((el) => el.textContent).join(" ").toLowerCase();
+      // The ONLY reliable real-time signal is the tile's mic icon ligature: "mic_off" when
+      // muted, "mic_none" (or "mic_external_on") when unmuted. We deliberately ignore the
+      // text labels — "You can't unmute someone else" and "Mute X's microphone" both linger
+      // stale on the panel row regardless of the live mic state (confirmed via BOT_DEBUG),
+      // so using them inverts the result.
+      if (/mic_off/.test(blob)) return "muted";
+      if (/mic_none|mic_external_on/.test(blob)) return "unmuted";
       return "unknown";
     }, name);
   } catch {

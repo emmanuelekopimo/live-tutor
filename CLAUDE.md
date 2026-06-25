@@ -176,10 +176,17 @@ pnpm start
 - **Muting others does NOT need Host Management / "Mute all".** As long as the bot account
   is host/co-host (it creates the space, so it is — see [[bot-account-is-meeting-host]]), each
   People-panel row exposes an inline **"Mute <name>'s microphone"** button. `moderator.muteAll()`
-  mutes the room by clicking each individually; `participantMicState()` reads mic state from the
-  same control (unmuted → "Mute …'s microphone"; muted → "You can't unmute someone else"). So
-  Host Management being off in the UI is fine. Don't rely on a "Mute all" button, and avoid
-  Meet's **Audio Lock** — it would block a called student from unmuting.
+  mutes the room by clicking each individually. So Host Management being off in the UI is fine.
+  Don't rely on a "Mute all" button, and avoid Meet's **Audio Lock** — it would block a called
+  student from unmuting.
+- **Reading another participant's mic state is icon-based, not text-based.** The People-panel
+  row's text/labels ("Mute <name>'s microphone", "You can't unmute someone else") **linger stale**
+  and do NOT track the live mic — using them inverts the result. The only reliable real-time
+  signal is the **mic icon ligature on the participant's video tile**: `mic_off` = muted,
+  `mic_none`/`mic_external_on` = unmuted. `participantMicState()` finds the row's stable
+  `data-participant-id`, then reads the icon ligature across all elements sharing that id (the
+  row + tile carry the same id). A raised hand renders the person as TWO listitems (Raised-hands
+  row + Contributors row); both share the id, so id-scoping is what makes detection work.
 - `/create-meet` (and `pnpm meet`) still create the space with `moderation: "ON"` (harmless;
   turns host management on by default), but it is **not required** for the bot to mute. Be
   deliberate if changing `accessType` or `moderation`.
